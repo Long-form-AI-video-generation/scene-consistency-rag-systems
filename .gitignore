@@ -1,0 +1,6 @@
+.venv/
+datasets/
+__pycache__/
+clip_embeddings.npy
+dataset_metadata.json
+faiss_clip.index

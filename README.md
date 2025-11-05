@@ -1,8 +1,4 @@
 
-# Scene-consistency RAG systems
-
-High-quality Retrieval-Augmented Generation (RAG) utilities and reference code for maintaining scene and character consistency when generating long-form AI video prompts. This repository contains a simple pipeline to ingest paired image+text character datasets, compute multimodal CLIP embeddings, build FAISS indices, run BM25 keyword filtering, rerank candidates with a cross-encoder, and assemble structured prompts for downstream generation.
-
 ## Highlights
 
 - Hybrid retrieval combining BM25 (keyword) and FAISS (CLIP embeddings) for robust candidate selection
@@ -107,21 +103,3 @@ Adjust these values in `main.py` for your environment or experiments.
 - NLTK tokenizers: the script attempts to download required resources (punkt). Ensure the environment can reach the internet or install `nltk` datasets manually (e.g. `python -m nltk.downloader punkt`).
 - If you want GPU acceleration: install `torch` with CUDA support and run on a machine with an NVIDIA GPU. `main.py` auto-detects CUDA via `torch.cuda.is_available()`.
 - FAISS: the repo lists `faiss-cpu` in `pyproject.toml`; if you have GPU-enabled FAISS builds, you can change the package and rebuild indices accordingly.
-
-## Extending this project
-
-- Add more sophisticated chunking or metadata (timestamps, source captions, bounding boxes).
-- Replace the CLIP model with a different multimodal encoder for better domain performance.
-- Build a small web service around `sample_query()` to serve prompts to downstream generators.
-
-## Contributing
-
-Contributions are welcome. If you open issues or pull requests, please include a short description of the change, rationale, and a minimal test or usage example where relevant.
-
-## License
-
-No license file is included in this repository; if you intend to share this code publicly, add a LICENSE file describing the terms.
-
-## Contact
-
-For questions about usage or to request help adapting the pipeline, open an issue in the repository.

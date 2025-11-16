@@ -8,3 +8,12 @@ numpy>=1.24.0
 pytest>=7.0.0
 black>=23.0.0
 flake8>=6.0.0
+
+pytest-cov
+faiss-cpu
+torch
+transformers
+sentence-transformers
+rank-bm25
+nltk
+pillow

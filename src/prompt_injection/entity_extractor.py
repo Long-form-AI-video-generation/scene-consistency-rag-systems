@@ -1,12 +1,4 @@
-"""
-EntityExtractor
----------------
-Extracts characters, locations, and categories from a free-text prompt.
-
-This module uses deterministic lookup tables built from your existing
-JSON entity files. It uses compiled Regex to ensure exact word matching
-(avoiding partial matches like 'Dan' inside 'Dancing').
-"""
+"""EntityExtractor: Deterministic entity extraction from text using regex-based lookup."""
 
 from dataclasses import dataclass
 from typing import List, Dict, Set, Optional
@@ -26,10 +18,6 @@ class EntityExtractionResult:
     categories: List[str]
 
 class EntityExtractor:
-    """
-    Loads character + location registries and performs deterministic
-    regex-based lookup.
-    """
 
     def __init__(
         self,
@@ -48,11 +36,6 @@ class EntityExtractor:
         self.loc_regex = self._compile_regex(self.loc_map.keys())
 
     def _build_lookup_map(self, directory: Path) -> Dict[str, str]:
-        """
-        Scans JSON files and builds a flat map of:
-        "lowercase name" -> "entity_id"
-        "lowercase alias" -> "entity_id"
-        """
         lookup = {}
         if not directory.exists():
             logger.warning(f"Directory not found: {directory}")
@@ -63,18 +46,15 @@ class EntityExtractor:
                 with open(file, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                # Handle both character_id and location_id field names
                 entity_id = data.get("character_id") or data.get("location_id") or data.get("entity_id")
                 name = data.get("name")
-                aliases = data.get("aliases", []) # Optional field
+                aliases = data.get("aliases", [])
 
                 if not entity_id or not name:
                     continue
 
-                # Index the canonical name
                 lookup[name.lower().strip()] = entity_id
 
-                # Index any aliases
                 for alias in aliases:
                     if alias:
                         lookup[alias.lower().strip()] = entity_id
@@ -85,21 +65,11 @@ class EntityExtractor:
         return lookup
 
     def _compile_regex(self, terms: Set[str]) -> Optional[re.Pattern]:
-        """
-        Creates a single optimized regex pattern for all terms.
-        Pattern: \b(term1|term2|term3)\b
-        Sorted by length desc to ensure "Isaac Smith" matches before "Isaac".
-        """
         if not terms:
             return None
 
-        # Sort by length descending to match longest phrases first
         sorted_terms = sorted(terms, key=len, reverse=True)
-
-        # Escape special regex characters in names
         escaped_terms = [re.escape(t) for t in sorted_terms]
-
-        # Join with OR (|) and wrap in word boundaries (\b)
         pattern_str = r'\b(' + '|'.join(escaped_terms) + r')\b'
         return re.compile(pattern_str, re.IGNORECASE)
 
@@ -109,15 +79,12 @@ class EntityExtractor:
         Scans text using pre-compiled regex.
         Returns deduplicated lists of IDs.
         """
-        # Characters
         found_char_ids = set()
         if self.char_regex:
             matches = self.char_regex.findall(text)
             for m in matches:
-                # Look up the ID using the lowercase match
                 found_char_ids.add(self.char_map[m.lower()])
 
-        # Locations
         found_loc_ids = set()
         if self.loc_regex:
             matches = self.loc_regex.findall(text)

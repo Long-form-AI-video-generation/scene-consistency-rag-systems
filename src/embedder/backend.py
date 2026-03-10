@@ -15,20 +15,11 @@ logger = logging.getLogger(__name__)
 def load_clip_model(
     model_name: str = "ViT-B/32", device: str = None
 ) -> Tuple[object, object, Callable]:
-    """Load a CLIP model and preprocessing function once and cache it.
-
-    Args:
-        model_name: CLIP model name (e.g., "ViT-B/32")
-        device: Target device ("cuda", "cuda:0", "cuda:1", "cpu", or None for auto-detect)
-
-    Returns (model, preprocess, tokenize_fn)
-    tokenize_fn(texts: List[str]) -> torch.LongTensor on device
-    """
+    """Load a CLIP model and preprocessing function once and cache it."""
     dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Loading CLIP model {model_name} on device: {dev}")
-    # Try OpenAI CLIP first
     try:
-        import clip as openai_clip  # type: ignore
+        import clip as openai_clip 
 
         model, preprocess = openai_clip.load(model_name, device=dev)
 
@@ -39,11 +30,9 @@ def load_clip_model(
         return model, preprocess, _tokenize
     except Exception:
         logger.debug("OpenAI CLIP load failed", exc_info=True)
-        # Try OpenCLIP
         try:
-            import open_clip  # type: ignore
+            import open_clip 
 
-            # open_clip uses hyphen names: e.g., ViT-B-32
             model_name_mapped = model_name.replace("/", "-")
             logger.info(f"Loading OpenCLIP model {model_name_mapped} on {dev}")
             model, _, preprocess = open_clip.create_model_and_transforms(

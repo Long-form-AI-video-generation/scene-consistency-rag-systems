@@ -93,7 +93,7 @@ def main():
     ))
     console.print()
 
-    # STEP 2: Entity Extraction (NER-lite for consistency)
+    # STEP 2: Entity Extraction
     console.print("[bold] Step 2: Entity Extraction[/bold]\n")
     
     entities = engine.extract_entities(sample_shot["description"])

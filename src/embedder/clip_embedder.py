@@ -1,7 +1,4 @@
-"""
-Production-ready ClipEmbedder with batched text/image encoding, fusion, and LRU caching.
-Public API: embed_text_batch, embed_image_batch, embed_entity, embed_entities
-"""
+"""ClipEmbedder: Batched text/image encoding, fusion, and caching."""
 
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
@@ -61,35 +58,22 @@ class ClipEmbedder:
         )
 
     def _add_to_cache(self, cache: OrderedDict, key: str, value: np.ndarray) -> None:
-        """
-        Add item to LRU cache, evicting least recently used item if at capacity.
-
-        Args:
-            cache: OrderedDict cache to add to
-            key: Cache key
-            value: Value to cache
-        """
-        # If key exists, move to end (mark as recently used)
         if key in cache:
             cache.move_to_end(key)
             cache[key] = value
         else:
-            # Add new item
             cache[key] = value
-            # Evict least recently used if over limit
             if len(cache) > self.max_cache_size:
                 evicted_key = cache.popitem(last=False)[0]
                 logger.debug(f"LRU cache evicted: {evicted_key[:50]}...")
 
     def embed_text_batch(self, texts: List[str]) -> np.ndarray:
-        """Batch text embedding. Returns (N, D) float32 array, L2-normalized."""
         if not texts:
             return np.zeros((0, self.dim), dtype=self.dtype)
         results: List[Optional[np.ndarray]] = [None] * len(texts)
         to_compute, order = [], []
         for i, t in enumerate(texts):
             if t in self._text_cache:
-                # Move to end (mark as recently used)
                 self._text_cache.move_to_end(t)
                 results[i] = self._text_cache[t]
             else:
@@ -111,12 +95,9 @@ class ClipEmbedder:
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
         if text in self._text_cache:
-            # Move to end (mark as recently used)
             self._text_cache.move_to_end(text)
             return self._text_cache[text]
-        # Compute and cache
-        self.embed_text_batch([text])  # Caches the result
-        # Return cached reference
+        self.embed_text_batch([text])
         return self._text_cache[text]
 
     def _load_images(self, paths: List[str]) -> Tuple[List, List[int]]:
@@ -137,7 +118,6 @@ class ClipEmbedder:
         to_compute, order = [], []
         for i, p in enumerate(paths):
             if p in self._image_cache:
-                # Move to end (mark as recently used)
                 self._image_cache.move_to_end(p)
                 results[i] = self._image_cache[p]
             else:
@@ -170,12 +150,9 @@ class ClipEmbedder:
         if not path or not path.strip():
             raise ValueError("Image path cannot be empty")
         if path in self._image_cache:
-            # Move to end (mark as recently used)
             self._image_cache.move_to_end(path)
             return self._image_cache[path]
-        # Compute and cache (embed_image_batch handles caching)
         self.embed_image_batch([path])
-        # Return the cached reference
         return self._image_cache[path]
 
     def _fuse(
@@ -191,7 +168,6 @@ class ClipEmbedder:
         )
 
     def embed_entity(self, entity: Dict) -> Dict:
-        """Embed a single entity and return dict with entity_id and fused_embedding."""
         eid = (
             entity.get("character_id") or entity.get("location_id") or entity.get("id")
         )
@@ -240,7 +216,7 @@ class ClipEmbedder:
             for i, e in enumerate(entities)
         ]
 
-    # -------------------- Backward Compatibility --------------------
+    # Backward Compatibility 
     def fuse(
         self,
         text_emb: np.ndarray,
@@ -249,7 +225,6 @@ class ClipEmbedder:
     ) -> np.ndarray:
         """Public fusion method for backward compatibility. Uses alpha parameter if provided, otherwise uses self.alpha."""
         if alpha is not None:
-            # Temporarily override alpha for this call
             old_alpha = self.alpha
             self.alpha = float(alpha)
             result = self._fuse(text_emb, image_emb)

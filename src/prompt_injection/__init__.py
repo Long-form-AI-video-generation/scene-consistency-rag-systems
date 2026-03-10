@@ -1,12 +1,7 @@
 """
 Scene Consistency Engine
 -------------------------
-The orchestrator that ties together all three modules:
-1. EntityExtractor - Finds character/location IDs from narrative text
-2. ContextRetriever - Queries RAG using full prompt + strict filters
-3. ShotEnricher - Merges RAG data into structured shot objects
-
-This is the single entry point for the Prompt Injection pipeline.
+Orchestrates entity extraction, context retrieval, and shot enrichment.
 """
 
 from typing import Dict, Any, Optional

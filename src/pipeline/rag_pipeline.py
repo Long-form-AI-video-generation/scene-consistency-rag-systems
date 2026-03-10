@@ -1,7 +1,4 @@
-"""
-RAG Pipeline
-Orchestrates the full retrieval-augmented generation workflow
-"""
+"""RAG Pipeline: Orchestrates retrieval-augmented generation workflow."""
 
 import json
 from pathlib import Path
@@ -60,7 +57,6 @@ class RAGPipeline:
     def _entity_lookup(
         entities: List[Dict[str, Any]], id_key: str
     ) -> Dict[str, Dict[str, Any]]:
-        """Build a lookup map of entity id → entity payload."""
         return {entity[id_key]: entity for entity in entities if entity.get(id_key)}
 
     def _index_documents(
@@ -71,18 +67,6 @@ class RAGPipeline:
         entity_type: str,
         include_image: bool = True,
     ) -> int:
-        """
-        Embed chunk texts (plus optional canonical images) and upsert into ChromaDB.
-
-        Implements robust error handling for:
-        - Text embedding failures (batch-level)
-        - Image embedding failures (per-entity, non-blocking)
-        - Document processing failures (per-document, non-blocking)
-        - ChromaDB insertion failures (batch-level)
-
-        Returns:
-            Number of successfully indexed documents
-        """
         if not docs:
             console.print(f"[yellow]⚠[/yellow] No documents to index for {collection_name}")
             return 0
@@ -90,7 +74,6 @@ class RAGPipeline:
         indexed_count = 0
         failed_count = 0
 
-        # Step 1: Batch text embedding with error handling
         try:
             texts = [doc.get("text", "") for doc in docs]
             if not all(texts):
@@ -103,10 +86,8 @@ class RAGPipeline:
         image_cache: Dict[str, Optional[Any]] = {}
         ids, embeddings, documents, metadatas = [], [], [], []
 
-        # Step 2: Process each document with per-document error handling
         for idx, doc in enumerate(docs):
             try:
-                # Validate required fields
                 if not doc.get("chunk_id"):
                     console.print(f"[yellow]⚠[/yellow] Document {idx} missing 'chunk_id', skipping")
                     failed_count += 1
@@ -120,7 +101,6 @@ class RAGPipeline:
 
                 entity = entity_lookup.get(entity_id, {})
 
-                # Step 3: Image embedding with per-entity error handling (non-blocking)
                 image_emb = None
                 if include_image and entity:
                     if entity_id not in image_cache:
@@ -138,17 +118,14 @@ class RAGPipeline:
                             image_cache[entity_id] = None
                     image_emb = image_cache[entity_id]
 
-                # Fuse embeddings
                 fused = self.embedder.fuse(text_embs[idx], image_emb)
 
-                # Prepare metadata
                 tags_value = doc.get("tags", [])
                 if isinstance(tags_value, list):
                     tags_value = ",".join(str(t) for t in tags_value)
                 else:
                     tags_value = str(tags_value or "")
 
-                # Append to batch
                 ids.append(doc["chunk_id"])
                 embeddings.append(fused.astype(float).tolist())
                 documents.append(doc.get("text", ""))
@@ -168,7 +145,6 @@ class RAGPipeline:
                 failed_count += 1
                 continue
 
-        # Step 4: ChromaDB insertion with error handling
         if ids:
             try:
                 chroma_client.add_documents(
@@ -210,7 +186,6 @@ class RAGPipeline:
         """
         console.print("\n[bold cyan]═══ Building Indices ═══[/bold cyan]\n")
 
-        # Reset collections if rebuilding
         if rebuild:
             console.print("[yellow]⟳[/yellow] Rebuilding indices...")
             chroma_client.reset_collection("characters")
@@ -253,7 +228,6 @@ class RAGPipeline:
             else {}
         )
 
-        # Index documents (counts returned but unused - indexing handles its own logging)
         self._index_documents(
             "characters", char_docs, char_lookup, "character", include_image=True
         )
@@ -264,11 +238,9 @@ class RAGPipeline:
             "relationships", rel_docs, rel_lookup, "relationship", include_image=False
         )
 
-        # Build BM25 index
         bm25 = self.dataset_prep.build_bm25_index(all_documents)
         self.dataset_prep.save_bm25_index(bm25, all_documents)
 
-        # Print summary
         table = Table(title="Index Summary")
         table.add_column("Collection", style="cyan")
         table.add_column("Count", style="green")
@@ -306,7 +278,6 @@ class RAGPipeline:
         Returns:
             List of ranked results with scores
         """
-        # Handle malformed queries gracefully
         if not query_text or not query_text.strip():
             console.print(
                 "[yellow]⚠[/yellow] Empty query provided, returning no results"
@@ -321,7 +292,6 @@ class RAGPipeline:
         retriever = self._get_retriever()
         reranker = self._get_reranker()
 
-        # Step 1: Hybrid retrieval
         try:
             results = retriever.hybrid_search(
                 query=query_text,
@@ -337,16 +307,12 @@ class RAGPipeline:
             console.print("[yellow]⚠[/yellow] No results found")
             return []
 
-        # Step 2: Rerank
         reranked_results = reranker.rerank(query_text, results, top_k=top_k_rerank)
-
-        # Display results
         self._display_results(reranked_results)
 
         return reranked_results
 
     def _display_results(self, results: List[Dict[str, Any]]):
-        """Display query results in a nice table."""
         if not results:
             return
 

@@ -30,14 +30,42 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for direct execution
     from tests.conftest import register_checklist_item
 
 
+@pytest.fixture(autouse=True)
+def mock_image_embedding(monkeypatch):
+    """Mock image embedding to avoid CLIP model and image file dependencies in CI/CD."""
+    import numpy as np
+    from embedder import ClipEmbedder
+    
+    def dummy_embed_image(self, path: str) -> np.ndarray:
+        # Return a dummy embedding vector (512-dim for ViT-B/32)
+        return np.random.rand(512).astype(np.float32)
+    
+    monkeypatch.setattr(ClipEmbedder, "embed_image", dummy_embed_image)
+
+
 @pytest.fixture(scope="module")
 def rag_pipeline() -> RAGPipeline:
     return RAGPipeline()
 
 
-def _load_sample_entities(pipeline: RAGPipeline) -> Dict[str, List[Dict]]:
-    chars = pipeline.load_json_data("data/characters/isaac.json")
-    locs = pipeline.load_json_data("data/locations/loc_office_001.json")
+def _create_test_entities() -> Dict[str, List[Dict]]:
+    """Create minimal test entities without image file dependencies.
+    
+    This allows tests to run in CI/CD environments without requiring
+    actual image files to be present in the repository.
+    """
+    chars = [{
+        "character_id": "char_test_001",
+        "name": "TestCharacter",
+        "appearance": "A test character wearing casual clothes in an office setting with a desk and computer",
+        "tags": ["test", "office"]
+    }]
+    locs = [{
+        "location_id": "loc_test_001",
+        "name": "TestOffice",
+        "description": "A modern office with desks, computers, and large windows overlooking the city",
+        "tags": ["test", "office"]
+    }]
     return {"characters": chars, "locations": locs}
 
 
@@ -58,15 +86,13 @@ class _DummyReranker:
 
 
 def test_rag_pipeline_build_and_query(monkeypatch, rag_pipeline: RAGPipeline):
-    data = _load_sample_entities(rag_pipeline)
+    data = _create_test_entities()
     chars = data["characters"]
     locs = data["locations"]
 
-    # Ensure we have sample data
     assert chars, "No character data loaded for RAGPipeline test"
     assert locs, "No location data loaded for RAGPipeline test"
 
-    # Rebuild indices from the small subset to keep the test fast and isolated
     rag_pipeline.build_indices(characters=chars, locations=locs, rebuild=True)
 
     # Collections should have some documents
@@ -109,9 +135,9 @@ console = Console()
 
 def test_retrieve_query(rag_pipeline: RAGPipeline):
     """Test: retrieve(query) works"""
-    # Load and build indices
-    chars = rag_pipeline.load_json_data("data/characters/isaac.json")
-    locs = rag_pipeline.load_json_data("data/locations/loc_office_001.json")
+    data = _create_test_entities()
+    chars = data["characters"]
+    locs = data["locations"]
     rag_pipeline.build_indices(characters=chars, locations=locs, rebuild=True)
 
     # Test retrieval
@@ -128,9 +154,9 @@ def test_retrieve_query(rag_pipeline: RAGPipeline):
 
 def test_retrieve_and_rerank(rag_pipeline: RAGPipeline, monkeypatch):
     """Test: retrieve_and_rerank(query) works"""
-    # Load and build indices
-    chars = rag_pipeline.load_json_data("data/characters/isaac.json")
-    locs = rag_pipeline.load_json_data("data/locations/loc_office_001.json")
+    data = _create_test_entities()
+    chars = data["characters"]
+    locs = data["locations"]
     rag_pipeline.build_indices(characters=chars, locations=locs, rebuild=True)
 
     # Monkeypatch reranker
@@ -151,9 +177,9 @@ def test_retrieve_and_rerank(rag_pipeline: RAGPipeline, monkeypatch):
 
 def test_malformed_query_handling(rag_pipeline: RAGPipeline, monkeypatch):
     """Test: RAGPipeline handles malformed queries gracefully"""
-    # Load and build indices
-    chars = rag_pipeline.load_json_data("data/characters/isaac.json")
-    locs = rag_pipeline.load_json_data("data/locations/loc_office_001.json")
+    data = _create_test_entities()
+    chars = data["characters"]
+    locs = data["locations"]
     rag_pipeline.build_indices(characters=chars, locations=locs, rebuild=True)
 
     # Monkeypatch reranker

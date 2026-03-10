@@ -1,7 +1,4 @@
-"""
-Dataset Preparation
-Handles text normalization, chunking, and BM25 indexing
-"""
+"""Dataset Preparation: Text normalization, chunking, and indexing."""
 
 import json
 import pickle
@@ -15,7 +12,7 @@ from config import cfg
 
 console = Console()
 
-# Stopwords for BM25 (minimal; do not remove "this" or "with" to preserve semantics for our tests)
+# Stopwords for BM25 
 STOPWORDS = set(
     [
         "a",
@@ -54,18 +51,8 @@ class DatasetPreparer:
 
     @staticmethod
     def bm25_preprocess(text: str) -> List[str]:
-        """
-        Preprocess text for BM25:
-        - Lowercase
-        - Remove punctuation (Unicode-safe via regex)
-        - Remove stopwords
-        - Remove tokens with length < 2
-        """
-        # Lowercase
         text = text.lower()
-        # Remove punctuation (keep word chars and whitespace)
         text = re.sub(r"[^\w\s]", " ", text)
-        # Split
         tokens = [t for t in text.split() if t and t not in STOPWORDS and len(t) >= 2]
         return tokens
 
@@ -73,18 +60,12 @@ class DatasetPreparer:
     tokenize = bm25_preprocess
 
     def chunk_text(self, text: str, chunk_id_prefix: str) -> List[Dict[str, Any]]:
-        """
-        Split text into overlapping chunks.
-
-        Returns:
-            List of chunks with metadata
-        """
         if len(text) <= self.chunk_size:
             doc_id = f"{chunk_id_prefix}_{0:02d}"
             return [
                 {
                     "doc_id": doc_id,
-                    "chunk_id": doc_id,  # backward compatible alias
+                    "chunk_id": doc_id,
                     "text": text,
                     "chunk_index": 0,
                 }
@@ -102,7 +83,7 @@ class DatasetPreparer:
             chunks.append(
                 {
                     "doc_id": doc_id,
-                    "chunk_id": doc_id,  # backward compatible alias
+                    "chunk_id": doc_id,
                     "text": chunk_text,
                     "chunk_index": chunk_idx,
                 }
@@ -116,20 +97,9 @@ class DatasetPreparer:
     def prepare_documents(
         self, entities: List[Dict[str, Any]], entity_type: str
     ) -> List[Dict[str, Any]]:
-        """
-        Prepare documents from entities for indexing.
-
-        Args:
-            entities: List of entity dictionaries
-            entity_type: "character", "location", or "relationship"
-
-        Returns:
-            List of prepared documents with metadata
-        """
         documents = []
 
         for entity in track(entities, description=f"Preparing {entity_type}s"):
-            # Extract text based on entity type
             if entity_type == "character":
                 text = entity.get("appearance", "")
                 entity_id = entity.get("character_id")
@@ -137,7 +107,6 @@ class DatasetPreparer:
                 text = entity.get("description", "")
                 entity_id = entity.get("location_id")
             elif entity_type == "relationship":
-                # Combine relationship info
                 text = f"{entity.get('relationship_type', '')} between {entity.get('source_entity', '')} and {entity.get('target_entity', '')}"
                 entity_id = entity.get("relationship_id")
             else:
@@ -146,7 +115,6 @@ class DatasetPreparer:
             if not text:
                 continue
 
-            # Create chunks
             chunks = self.chunk_text(text, entity_id)
 
             for chunk in chunks:
@@ -158,7 +126,7 @@ class DatasetPreparer:
                     "entity_type": entity_type,
                     "text": chunk["text"],
                     "bm25_tokens": tokens,
-                    "tokens": tokens,  # backward compatibility
+                    "tokens": tokens,
                     "chunk_index": chunk["chunk_index"],
                     "metadata": entity.get("metadata", {}),
                     "tags": entity.get("tags", []),
@@ -177,11 +145,9 @@ class DatasetPreparer:
             for doc in documents
         ]
         bm25 = BM25Okapi(tokenized_docs)
-        # Attach corpus for introspection in tests (some versions of rank_bm25 hide it)
         try:
             setattr(bm25, "corpus", tokenized_docs)
         except Exception:
-            # Some BM25 implementations may not allow setting attributes, which is fine
             pass
 
         console.print(
@@ -213,16 +179,13 @@ class DatasetPreparer:
         console.print(f"[green]✓[/green] BM25 index loaded from {index_path}")
         return data["bm25"], data["documents"]
 
-    # -------- Convenience helpers for tests & pipeline QA --------
     def load_entities(self, dir_path: str, entity_type: str) -> List[Dict[str, Any]]:
-        """Load all JSON files from a directory as entity dicts."""
         base = Path(dir_path)
         entities: List[Dict[str, Any]] = []
         for p in sorted(base.glob("*.json")):
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                # Accept single or list payloads
                 if isinstance(data, list):
                     entities.extend(data)
                 else:
@@ -238,7 +201,6 @@ class DatasetPreparer:
     def chunk_entity(
         self, entity: Dict[str, Any], entity_type: str
     ) -> List[Dict[str, Any]]:
-        """Chunk a single entity using its text field and id."""
         if entity_type == "character":
             text = entity.get("appearance", "")
             eid = entity.get("character_id")
@@ -258,15 +220,6 @@ class DatasetPreparer:
         locations_dir: str = "data/locations",
         relationships_dir: str = None,
     ) -> Dict[str, Any]:
-        """
-        Prepare a full dataset structure ready for embedding & indexing.
-        Returns:
-            {
-              "characters": [...chunks...],
-              "locations":  [...chunks...],
-              "bm25": BM25Okapi
-            }
-        """
         characters = (
             self.load_entities(characters_dir, "character") if characters_dir else []
         )
